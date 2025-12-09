@@ -17,31 +17,49 @@ function App() {
   const [midiFile, setMidiFile] = useState(null);
   const { playMelody } = useAudioContext();
 
-  const handlePlayOriginal = () => {
-    const notes = inputMelody.trim().split(/\s+/).filter(Boolean);
-    const midiNumbers = notes.map(noteToMidiNumber).filter(n => typeof n === 'number');
-    playMelody(midiNumbers);
-  };
+  // ✅ Утилита: строка нот → массив валидных MIDI-номеров
+const parseNotesToMidi = (noteString) => {
+  return noteString
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(noteToMidiNumber)
+    .filter(n => typeof n === 'number' && !isNaN(n)); // защита от NaN
+};
 
-  const handlePlayTransposed = () => {
-    const notes = result.trim().split(/\s+/).filter(Boolean);
-    const midiNumbers = notes.map(noteToMidiNumber).filter(n => typeof n === 'number');
-    playMelody(midiNumbers);
-  };
+// ✅ Утилита: проиграть строку нот
+const playNoteString = (noteString) => {
+  const midiNumbers = parseNotesToMidi(noteString);
+  playMelody(midiNumbers);
+};
 
-  const handleTranspose = () => {
-    try {
-      const notes = inputMelody.trim().split(/\s+/).filter(Boolean);
-      const midiNumbers = notes.map(noteToMidiNumber);
-      const transposedMidi = transposeScaleAware(midiNumbers, originalKey, newKey);
-      const transposedNotes = transposedMidi.map(midiNumberToNote);
-      setResult(transposedNotes.join(' '));
-    } catch (err) {
-      alert('Ошибка транспонирования: ' + err.message);
+const handlePlayOriginal = () => {
+  playNoteString(inputMelody);
+};
+
+const handlePlayTransposed = () => {
+  playNoteString(result);
+};
+
+ const handleTranspose = () => {
+  try {
+    const midiNumbers = parseNotesToMidi(inputMelody);
+
+    // Если после парсинга ничего нет — не продолжать
+    if (midiNumbers.length === 0) {
       setResult('');
+      return;
     }
-  };
 
+    const transposedMidi = transposeScaleAware(midiNumbers, originalKey, newKey);
+    const transposedNotes = transposedMidi.map(midiNumberToNote);
+    setResult(transposedNotes.join(' '));
+  } catch (err) {
+    console.error('Ошибка транспонирования:', err);
+    alert('Ошибка транспонирования: ' + (err.message || err));
+    setResult('');
+  }
+};
   const handleTextFileUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
