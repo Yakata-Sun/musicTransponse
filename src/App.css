@@ -62,3 +62,11 @@ button:disabled {
   font-size: 14px;
   color: #7f8c8d;
 }
+
+.detection-section {
+  transition: all 0.3s ease;
+}
+.detection-section h3, .detection-section h4 {
+  margin-top: 0;
+  color: #2c3e50;
+}

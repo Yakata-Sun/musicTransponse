@@ -17,3 +17,12 @@ export function midiNumberToNote(midiNum) {
   const noteIndex = midiNum % 12;
   return `${NUM_TO_NOTE[noteIndex]}${octave}`;
 }
+
+export function parseNotesToMidi (noteString) {
+  return noteString
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(noteToMidiNumber)
+    .filter(n => typeof n === 'number' && !isNaN(n)); // защита от NaN
+};

@@ -3,9 +3,12 @@ import midiParser from 'midi-parser-js';
 import './App.css';
 import { NOTE_TO_NUM, NOTE_OPTIONS } from './constants/notes';
 import { MODES, SCALES } from './constants/modes';
-import { noteToMidiNumber, midiNumberToNote } from './utils/noteUtils';
+import { noteToMidiNumber, midiNumberToNote, parseNotesToMidi } from './utils/noteUtils';
 import {transposeScaleAware} from "./utils/scaleUtils";
 import {useAudioContext} from "./hooks/useAudioContext";
+import { detectKey } from './utils/keyDetection';
+import CircleOfFifths from './components/CircleOfFifths';
+import KeyScoreChart from './components/KeyScoreChart';
 
 // === Component ===
 function App() {
@@ -16,16 +19,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [midiFile, setMidiFile] = useState(null);
   const { playMelody } = useAudioContext();
-
-  // ✅ Утилита: строка нот → массив валидных MIDI-номеров
-const parseNotesToMidi = (noteString) => {
-  return noteString
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(noteToMidiNumber)
-    .filter(n => typeof n === 'number' && !isNaN(n)); // защита от NaN
-};
+const [detectedData, setDetectedData] = useState(null); // ← вместо detectedKey
 
 // ✅ Утилита: проиграть строку нот
 const playNoteString = (noteString) => {
@@ -60,6 +54,7 @@ const handlePlayTransposed = () => {
     setResult('');
   }
 };
+
   const handleTextFileUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -103,7 +98,27 @@ const handlePlayTransposed = () => {
     };
     reader.readAsArrayBuffer(file);
   };
+const handleDetectKey = () => {
+  try {
+    const midiNumbers = parseNotesToMidi(inputMelody);
+    if (midiNumbers.length === 0) {
+      alert('Введите ноты для анализа!');
+      return;
+    }
 
+    const result = detectKey(midiNumbers); // теперь возвращает { best, alternatives, ... }
+    if (result && result.best) {
+      setOriginalKey(result.best.key);
+      setDetectedData(result);
+    } else {
+      setDetectedData({ best: null, explanation: 'Не удалось определить тональность.' });
+    }
+  } catch (err) {
+    console.error('Ошибка определения тональности:', err);
+    alert('Ошибка анализа: ' + (err.message || 'неизвестная ошибка'));
+    setDetectedData(null);
+  }
+};
  
   return (
     <div className="App">
@@ -132,7 +147,53 @@ const handlePlayTransposed = () => {
           ▶️ Воспроизвести оригинал
         </button>
       </div>
+<div className="input-group">
+  <button onClick={handleDetectKey} disabled={!inputMelody.trim()}>
+    🔍 Определить тональность автоматически
+  </button>
 
+  {detectedData && (
+  <div className="detection-section" style={{ marginTop: '20px', padding: '16px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#fafafa' }}>
+    <h3>🔍 Анализ тональности</h3>
+
+    {detectedData.best ? (
+      <>
+        <p><strong>Наиболее вероятно:</strong> {detectedData.best.key[0]} {detectedData.best.key[1]}  
+          (уверенность: {(detectedData.best.confidence * 100).toFixed(0)}%)</p>
+        <p style={{ fontSize: '0.95em', color: '#555' }}>{detectedData.best.explanation}</p>
+
+        <button 
+          onClick={() => setOriginalKey(detectedData.best.key)}
+          style={{ marginTop: '6px', marginRight: '8px' }}
+        >
+          ✅ Использовать как исходную тональность
+        </button>
+
+        {/* Визуализации */}
+        <CircleOfFifths detectedData={detectedData} bestKey={detectedData.best.key} />
+        <KeyScoreChart best={detectedData.best} alternatives={detectedData.alternatives} />
+
+        {/* Альтернативы */}
+        {detectedData.alternatives && detectedData.alternatives.length > 0 && (
+          <div style={{ marginTop: '20px' }}>
+            <h4>Другие возможные тональности:</h4>
+            <ul style={{ paddingLeft: '20px', fontSize: '0.95em' }}>
+              {detectedData.alternatives.slice(0, 3).map((alt, i) => (
+                <li key={i}>
+                  {alt.key[0]} {alt.key[1]} ({(alt.confidence * 100).toFixed(0)}%)  
+                  {i === 0 && ' — например, если мелодия начинается с субдоминанты или использует модальную каденцию'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </>
+    ) : (
+      <p>⚠️ {detectedData.explanation}</p>
+    )}
+  </div>
+)}
+</div>
       <div className="input-group">
         <label>Исходная тональность:</label>
         <select value={originalKey[0]} onChange={e => setOriginalKey([e.target.value, originalKey[1]])}>
